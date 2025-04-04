@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "138559582944",
+    "project_id": "authh-6247a",
+    "storage_bucket": "authh-6247a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:138559582944:android:eac0a11cf9feda83089685",
+        "android_client_info": {
+          "package_name": "com.example.authk"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAuBGDfAopzW7mAF2OXtb_wOpdQnbjofx0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
