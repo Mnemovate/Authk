@@ -1,6 +1,5 @@
-import 'package:authk/auth_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:authk/auth_service.dart';
 
 class ChangePasswordPage extends StatefulWidget {
   const ChangePasswordPage({super.key});
@@ -10,56 +9,79 @@ class ChangePasswordPage extends StatefulWidget {
 }
 
 class _ChangePasswordPageState extends State<ChangePasswordPage> {
-  TextEditingController emailController = TextEditingController();
-  TextEditingController currentPasswordController = TextEditingController();
-  TextEditingController newPasswordController = TextEditingController();
-  final formKey = GlobalKey<FormState>();
-  String errorMessage = '';
-  String successMessage = '';
-  bool isLoading = false;
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _currentPasswordController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  
+  String? _errorMessage;
+  String? _successMessage;
+  bool _isLoading = false;
+  bool _obscureCurrentPassword = true;
+  bool _obscureNewPassword = true;
+  bool _obscureConfirmPassword = true;
 
   @override
   void initState() {
     super.initState();
     // Pre-fill email if user is logged in
-    if (authService.value.currentUser != null && 
-        authService.value.currentUser!.email != null) {
-      emailController.text = authService.value.currentUser!.email!;
+    if (authService.currentUser?.email != null) {
+      _emailController.text = authService.currentUser!.email!;
     }
   }
 
   @override
   void dispose() {
-    emailController.dispose();
-    currentPasswordController.dispose();
-    newPasswordController.dispose();
+    _emailController.dispose();
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  void changePassword() async {
+  Future<void> _changePassword() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    
     setState(() {
-      isLoading = true;
-      errorMessage = '';
-      successMessage = '';
+      _isLoading = true;
+      _errorMessage = null;
+      _successMessage = null;
     });
     
     try {
-      await authService.value.resetPasswordFromCurrentPassword(
-        email: emailController.text,
-        currentPassword: currentPasswordController.text,
-        newPassword: newPasswordController.text,
+      await authService.changePassword(
+        email: _emailController.text,
+        currentPassword: _currentPasswordController.text,
+        newPassword: _newPasswordController.text,
       );
-      setState(() {
-        successMessage = 'Password changed successfully!';
-        currentPasswordController.clear();
-        newPasswordController.clear();
-        isLoading = false;
-      });
-    } on FirebaseAuthException catch (e) {
-      setState(() {
-        errorMessage = e.message ?? 'Failed to change password';
-        isLoading = false;
-      });
+      
+      if (mounted) {
+        setState(() {
+          _successMessage = 'Password changed successfully!';
+          _currentPasswordController.clear();
+          _newPasswordController.clear();
+          _confirmPasswordController.clear();
+          _isLoading = false;
+        });
+        
+        // Show success snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password changed successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -71,129 +93,243 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         title: const Text("Change Password"),
         backgroundColor: Colors.greenAccent[400],
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                "Change Password",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Form(
-                key: formKey,
-                child: Column(children: [
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
                   const SizedBox(height: 20),
-                  TextField(
-                    controller: emailController,
-                    enabled: authService.value.currentUser?.email == null,
+                  const Text(
+                    "Change Password",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  
+                  // Email field
+                  TextFormField(
+                    controller: _emailController,
+                    enabled: authService.currentUser?.email == null,
                     style: const TextStyle(color: Colors.white),
+                    keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
                       labelText: "Email",
-                      labelStyle: const TextStyle(color: Colors.white),
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      prefixIcon: const Icon(Icons.email, color: Colors.white70),
                       filled: true,
                       fillColor: Colors.black54,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.greenAccent[400]!),
+                      ),
                     ),
-                    // validator: (value) {
-                    //   if (value == null || value.isEmpty) {
-                    //     return 'Please enter your email';
-                    //   }
-                    //   return null;
-                    // },
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your email';
+                      }
+                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                        return 'Please enter a valid email';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 15),
-                  TextField(
-                    controller: currentPasswordController,
-                    obscureText: true,
+                  
+                  // Current password field
+                  TextFormField(
+                    controller: _currentPasswordController,
+                    obscureText: _obscureCurrentPassword,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
                       labelText: "Current Password",
-                      labelStyle: const TextStyle(color: Colors.white),
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      prefixIcon: const Icon(Icons.lock, color: Colors.white70),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureCurrentPassword ? Icons.visibility : Icons.visibility_off,
+                          color: Colors.white70,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscureCurrentPassword = !_obscureCurrentPassword;
+                          });
+                        },
+                      ),
                       filled: true,
                       fillColor: Colors.black54,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.greenAccent[400]!),
+                      ),
                     ),
-                    // validator: (value) {
-                    //   if (value == null || value.isEmpty) {
-                    //     return 'Please enter your current password';
-                    //   }
-                    //   return null;
-                    // },
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your current password';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 15),
-                  TextField(
-                    controller: newPasswordController,
-                    obscureText: true,
+                  
+                  // New password field
+                  TextFormField(
+                    controller: _newPasswordController,
+                    obscureText: _obscureNewPassword,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
                       labelText: "New Password",
-                      labelStyle: const TextStyle(color: Colors.white),
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      prefixIcon: const Icon(Icons.lock_outline, color: Colors.white70),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureNewPassword ? Icons.visibility : Icons.visibility_off,
+                          color: Colors.white70,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscureNewPassword = !_obscureNewPassword;
+                          });
+                        },
+                      ),
                       filled: true,
                       fillColor: Colors.black54,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
-                    ),
-                    // validator: (value) {
-                    //   if (value == null || value.isEmpty) {
-                    //     return 'Please enter your new password';
-                    //   }
-                    //   if (value.length < 6) {
-                    //     return 'Password must be at least 6 characters';
-                    //   }
-                    //   return null;
-                    // },
-                  ),
-                  const SizedBox(height: 15),
-                  if (errorMessage.isNotEmpty)
-                    Text(
-                      errorMessage,
-                      style: const TextStyle(
-                        color: Colors.red,
-                        fontSize: 14,
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.greenAccent[400]!),
                       ),
                     ),
-                  if (successMessage.isNotEmpty)
-                    Text(
-                      successMessage,
-                      style: const TextStyle(
-                        color: Colors.green,
-                        fontSize: 14,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your new password';
+                      }
+                      if (value.length < 6) {
+                        return 'Password must be at least 6 characters';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 15),
+                  
+                  // Confirm new password
+                  TextFormField(
+                    controller: _confirmPasswordController,
+                    obscureText: _obscureConfirmPassword,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: "Confirm New Password",
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      prefixIcon: const Icon(Icons.lock_outline, color: Colors.white70),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
+                          color: Colors.white70,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscureConfirmPassword = !_obscureConfirmPassword;
+                          });
+                        },
+                      ),
+                      filled: true,
+                      fillColor: Colors.black54,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.greenAccent[400]!),
                       ),
                     ),
-                  const SizedBox(height: 15),
-                  ElevatedButton(
-                    onPressed: isLoading 
-                        ? null 
-                        : () {
-                            if (formKey.currentState!.validate()) {
-                              changePassword();
-                            }
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.greenAccent[400],
-                      minimumSize: const Size(double.infinity, 50),
-                    ),
-                    child: isLoading
-                        ? const CircularProgressIndicator(color: Colors.black)
-                        : const Text(
-                            "Change Password",
-                            style: TextStyle(color: Colors.black),
-                          ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please confirm your new password';
+                      }
+                      if (value != _newPasswordController.text) {
+                        return 'Passwords do not match';
+                      }
+                      return null;
+                    },
                   ),
-                ]),
+                  const SizedBox(height: 20),
+                  
+                  // Error and success messages
+                  if (_errorMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 15),
+                      child: Text(
+                        _errorMessage!,
+                        style: const TextStyle(
+                          color: Colors.red,
+                          fontSize: 14,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    
+                  if (_successMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 15),
+                      child: Text(
+                        _successMessage!,
+                        style: const TextStyle(
+                          color: Colors.green,
+                          fontSize: 14,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  
+                  // Submit button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _changePassword,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.greenAccent[400],
+                        foregroundColor: Colors.black,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 3,
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.black,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              "Change Password",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
